@@ -1,10 +1,10 @@
 #!/bin/bash
 
+# Activate virtual environment if needed
+source ../.venv/bin/activate
+
 # Navigate to the directory where api_gateway.py is located
 cd "../src/services/" || { echo "Directory not found"; exit 1; }
-
-# Activate virtual environment if needed
-source ../.venv/bin/activate  # Uncomment this line if you are using a virtual environment
 
 # Set PYTHONPATH to the project root
 export PYTHONPATH="$(dirname "$0")/.."
