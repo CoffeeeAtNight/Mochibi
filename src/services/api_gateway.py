@@ -2,6 +2,7 @@ import os
 from flask import Flask, jsonify, request
 
 from services.stt_service import convert_speech_to_text
+from services.tts_service import convert_text_to_speech
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -27,17 +28,16 @@ def tts():
     
     if request.method == 'POST':
         text = request.json.get('text')
+        
         if not text:
             return jsonify({'status': 'error', 'message': 'No text provided'}), 400
         
-        # Placeholder for TTS functionality
-        # Replace this line with actual TTS processing
-        audio_base64 = "base64_encoded_audio_string"
+        path = convert_text_to_speech(text)
         
         return jsonify({
             'status': 'success',
             'message': 'Text-to-speech synthesis successful',
-            'data': {'audio': audio_base64}
+            'data': {'path': path}
         })
 
 @app.route('/api/v1/stt', methods=['POST'])

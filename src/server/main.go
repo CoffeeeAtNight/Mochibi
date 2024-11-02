@@ -33,6 +33,16 @@ type SttReponseData struct {
 	Text string `json:"text"`
 }
 
+type TtsResponse struct {
+	Status  string         `json:"status"`
+	Message string         `json:"message"`
+	Data    TtsReponseData `json:"data"`
+}
+
+type TtsReponseData struct {
+	Path string `json:"path"`
+}
+
 const (
 	TEXT_MESSAGE     = 1
 	BINARY_MESSAGE   = 2
@@ -62,6 +72,15 @@ func writeBinaryDataToFile(message []byte) (string, error) {
 	filePath := fmt.Sprintf("/tmp/mochibi-%d.wav", rand.Int())
 	err := ioutil.WriteFile(filePath, message, 0644)
 	return filePath, err
+}
+
+func readBinaryDataFromFile(filePath string) []byte {
+	buff, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Println("Error occurred while trying to read audio file into buffer")
+		panic("Failed to read file into buffer")
+	}
+	return buff
 }
 
 func sendMessageTextToLlm(message string) string {
@@ -106,6 +125,40 @@ func sendMessageTextToLlm(message string) string {
 	return llmResponse.Response
 }
 
+func convertTextToSpeech(llmResponse string) string {
+	sttPostUrl := API_GATEWAY_ADDR + "/tts"
+	body, err := json.Marshal(map[string]string{
+		"text": llmResponse,
+	})
+	if err != nil {
+		panic("Error marshaling the body")
+	}
+	request, err := http.NewRequest("POST", sttPostUrl, bytes.NewBuffer(body))
+	if err != nil {
+		fmt.Println("Error occurred while trying to CONSTRUCT the POST request for the TTS (text-to-speech) service")
+		panic(err)
+	}
+
+	request.Header.Add("Content-Type", "application/json")
+	client := &http.Client{}
+	res, err := client.Do(request)
+	if err != nil {
+		fmt.Println("Error occurred while trying to SEND the POST request to  TTS (text-to-speech) service")
+		panic(err)
+	}
+
+	defer res.Body.Close()
+
+	ttsResponse := &TtsResponse{}
+	derr := json.NewDecoder(res.Body).Decode(ttsResponse)
+	if derr != nil {
+		fmt.Println("Error occurred while trying to decode the response of the TTS (text-to-speech) service")
+		panic(derr)
+	}
+
+	return ttsResponse.Data.Path
+}
+
 func handleWebsocketConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -144,11 +197,16 @@ func handleWebsocketConnections(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Echo message back to client
-		if err := ws.WriteMessage(messageType, message); err != nil {
-			fmt.Printf("Write failed: %v\n", err)
-			break
-		}
+		// if err := ws.WriteMessage(messageType, message); err != nil {
+		// 	fmt.Printf("Write failed: %v\n", err)
+		// 	break
+		// }
 	}
+
+	// // Send EOF to Python client explicitly after processing the received file
+	// if err := ws.WriteMessage(websocket.TextMessage, []byte("EOF")); err != nil {
+	// 	fmt.Printf("Failed to send EOF marker: %v\n", err)
+	// }
 
 	sttPostUrl := API_GATEWAY_ADDR + "/stt"
 	body, err := json.Marshal(map[string]string{
@@ -188,4 +246,18 @@ func handleWebsocketConnections(w http.ResponseWriter, r *http.Request) {
 
 	llmResponseMessage := sendMessageTextToLlm(sstResponse.Data.Text)
 	fmt.Printf("» Mochibi: %s\n\n", llmResponseMessage)
+
+	ttsFilePath := convertTextToSpeech(llmResponseMessage)
+	fileBuff := readBinaryDataFromFile(ttsFilePath)
+	fmt.Println("File path is: " + ttsFilePath)
+
+	if err := ws.WriteMessage(BINARY_MESSAGE, fileBuff); err != nil {
+		fmt.Printf("Write failed: %v\n", err)
+		panic("Failed to write buffer to websocket connection")
+	}
+
+	// Send EOF again if required after sending TTS data
+	if err := ws.WriteMessage(websocket.TextMessage, []byte("EOF")); err != nil {
+		fmt.Printf("Failed to send EOF marker after TTS data: %v\n", err)
+	}
 }
