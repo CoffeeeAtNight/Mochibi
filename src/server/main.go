@@ -195,12 +195,6 @@ func handleWebsocketConnections(w http.ResponseWriter, r *http.Request) {
 		if messageType == BINARY_MESSAGE {
 			completeMessage = append(completeMessage, message...)
 		}
-
-		// Echo message back to client
-		// if err := ws.WriteMessage(messageType, message); err != nil {
-		// 	fmt.Printf("Write failed: %v\n", err)
-		// 	break
-		// }
 	}
 
 	// // Send EOF to Python client explicitly after processing the received file
@@ -256,7 +250,6 @@ func handleWebsocketConnections(w http.ResponseWriter, r *http.Request) {
 		panic("Failed to write buffer to websocket connection")
 	}
 
-	// Send EOF again if required after sending TTS data
 	if err := ws.WriteMessage(websocket.TextMessage, []byte("EOF")); err != nil {
 		fmt.Printf("Failed to send EOF marker after TTS data: %v\n", err)
 	}
