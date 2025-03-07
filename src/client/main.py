@@ -131,7 +131,7 @@ async def monitor_button_press(websocket):
     """Monitor the button press and record audio when pressed."""
     while True:
         button_state = GPIO.input(BUTTON_PIN)
-        print(f"Button state: {button_state}")  # Debugging statement
+        print(f"Button state: {button_state}")
 
         if button_state == GPIO.LOW:
             print("Button pressed")
